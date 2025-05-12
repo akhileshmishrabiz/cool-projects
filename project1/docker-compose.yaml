@@ -1,0 +1,118 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: db
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  webapp:
+    build:
+      context: app
+      dockerfile: Dockerfile.flask
+    container_name: flask-app
+    ports:
+      - "8080:80"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=appdb
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres123
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.5'      
+          memory: 256M      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
+  stress-generator:
+    build: 
+      context: load-service 
+      dockerfile: Dockerfile.load
+    depends_on:
+      - webapp
+    environment:
+      - TARGET_URL=http://webapp
+      - STRESS_LEVEL=low
+      # low, medium, high, extreme, cpu-intensive, memory-intensive
+    networks:
+      - app-network
+
+  monitor:
+    build:
+      context: monitor-dashboard-service
+      dockerfile: Dockerfile.monitor
+    container_name: app-monitor
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs:/var/log
+    environment:
+      - CONTAINER_NAME=flask-app
+      - MONITOR_MODE=live
+      - CPU_THRESHOLD="40"
+      - MEMORY_THRESHOLD="50"
+      - RESPONSE_TIME_THRESHOLD=1000
+
+    command: ["sh", "-c", "python3 dashboard.py & ./monitor_container.sh live"]
+    networks:
+      - app-network
+
+  alert-service:
+    build:
+      context: alert-service
+      dockerfile: Dockerfile.alert
+    container_name: alert-service
+    volumes:
+      - ./logs:/var/log:ro  # Read-only access to log files
+    environment:
+      - CONTAINER_NAME=monitored-app
+      - ALERT_LOG=/var/log/container_alerts.log
+      - AWS_REGION=${AWS_REGION:-ap-south-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - SENDER_EMAIL=${SENDER_EMAIL}
+      - RECIPIENT_EMAILS=${RECIPIENT_EMAILS}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-30}
+      - ALERT_COOLDOWN=${ALERT_COOLDOWN:-300}
+      - BUFFER_TIMEOUT=${BUFFER_TIMEOUT:-60}
+    depends_on:
+      - monitor
+    restart: unless-stopped
+    networks:
+      - app-network
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

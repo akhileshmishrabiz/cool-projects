@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+RUN pip install --no-cache-dir boto3
+
+# Create necessary directories
+RUN mkdir -p /var/log
+
+# Copy alert service script
+COPY alert_service.py /app/
+
+# Set environment variables (can be overridden at runtime)
+ENV PYTHONUNBUFFERED=1
+ENV CHECK_INTERVAL=30
+ENV ALERT_COOLDOWN=300
+ENV BUFFER_TIMEOUT=60
+
+# Create a non-root user for security
+RUN useradd -m -s /bin/bash alertuser && \
+    chown -R alertuser:alertuser /app
+
+# Switch to non-root user
+USER alertuser
+
+# Health check to ensure service is running
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+  CMD python3 -c "import os, sys; sys.exit(0 if os.path.exists('/proc/1') else 1)"
+
+# Run the alert service
+CMD ["python3", "alert_service.py"]
