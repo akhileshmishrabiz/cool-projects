@@ -61,7 +61,7 @@ services:
       - webapp
     environment:
       - TARGET_URL=http://webapp
-      - STRESS_LEVEL=medium
+      - STRESS_LEVEL=low
       # low, medium, high, extreme, cpu-intensive, memory-intensive
     networks:
       - app-network

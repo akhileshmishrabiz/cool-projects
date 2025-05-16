@@ -14,7 +14,7 @@ STRESS_CONFIGS = {
     'low': {'threads': 5, 'requests_per_thread': 10, 'delay': 0.5},
     'medium': {'threads': 20, 'requests_per_thread': 100, 'delay': 0.1},
     'high': {'threads': 50, 'requests_per_thread': 200, 'delay': 0.05},
-    'extreme': {'threads': 100, 'requests_per_thread': 5000, 'delay': 0.001},
+    'extreme': {'threads': 100, 'requests_per_thread': 500, 'delay': 0.001},
     'cpu-intensive': {'threads': 10, 'requests_per_thread': 50, 'delay': 0.1, 'cpu_focus': True},
     'memory-intensive': {'threads': 10, 'requests_per_thread': 50, 'delay': 0.1, 'memory_focus': True}
 }
